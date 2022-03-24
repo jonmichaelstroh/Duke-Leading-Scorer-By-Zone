@@ -1,0 +1,78 @@
+---
+title: "Duke Leading Scorer by Zone"
+author: '@jonmichaelstroh'
+date: "12/25/2021"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, 
+                      echo = TRUE, dpi = 300, cache.lazy = FALSE,
+                      tidy = "styler")
+```
+
+```{r load libraries}
+library(tidyverse)
+library(dplyr)
+library(gamezoneR)
+library(rpivotTable)
+```
+
+
+```{r team schedule}
+duke_schedule_22 <-  gamezone_mbb_team_schedule("Duke", season = "2021-22") %>% filter(is.na(home_total) == FALSE)
+```
+
+Shots include ACC tournament but no March Madness games:
+
+```{r then shots}
+duke_shots <- purrr::map_df(duke_schedule_22$game_id, 
+                          gamezone_mbb_pbp, sub_parse = F) %>% filter(event_team == "Duke") %>% filter(is.na(shooter) == FALSE)
+```
+
+After getting the shot data, we will divide it up into quadrants based on its location data:
+
+```{r filter shots into quadrants}
+duke_shots <- duke_shots %>% mutate(shot_quadrant = factor(if_else(loc_x >= 21 & loc_x <= 25 & ((loc_y - 5.25)^2 + (25 - loc_x)^2 <= 16), "Restricted Area", if_else(loc_x > 25 & loc_x <= 29 & ((loc_y - 5.25)^2 + (loc_x - 25)^2 <= 16), "Restricted Area", if_else(loc_x >= 19 & loc_x <= 31 & loc_y <= 19, "Paint", if_else(loc_y <= 13 & three_pt == TRUE & loc_x < 25, "Right Corner 3", if_else(loc_y <= 13 & three_pt == TRUE & loc_x > 25, "Left Corner 3", if_else(loc_y > 12 & ((loc_x*-1.25+42.75)>=loc_y) & three_pt == TRUE & loc_x < 25, "Right Wing 3", if_else(loc_y > 12 & ((loc_x*1.25-19.75)>=loc_y) & three_pt == TRUE & loc_x > 25, "Left Wing 3", if_else(three_pt == TRUE, "Top Arc 3", if_else(loc_y > 12 & ((loc_x*1.25-19.75)>=loc_y) & three_pt == TRUE & loc_x > 25, "Left Wing 3", if_else(three_pt == TRUE, "Top Arc 3", if_else(((loc_x*1.25-19.75)>=loc_y) & loc_x > 25, "Left Mid", if_else(((loc_x*-1.25+42.75)>=loc_y) & loc_x < 25, "Right Mid", "Center Mid"))))))))))))))
+```
+
+```{r}
+duke_shots <- duke_shots %>% mutate(shot_outcome_binary = if_else(shot_outcome == 'made', 1, 0))
+```
+
+# Fields goals made by zone
+```{r}
+duke_lmakes_byzone <- duke_shots[c('shooter', 'shot_outcome_binary', 'shot_quadrant')] %>% group_by(shooter) %>%
+  pivot_wider(names_from = shot_quadrant, values_from = shot_outcome_binary, values_fn = sum) 
+```
+
+#Shooting percent by zone
+```{r}
+duke_lpercent_byzone <- duke_shots[c('shooter', 'shot_outcome_binary', 'shot_quadrant')] %>% group_by(shooter) %>%
+  pivot_wider(names_from = shot_quadrant, values_from = shot_outcome_binary, values_fn = mean)
+```
+
+#A look at Duke's shots this year
+```{r}
+gamezoneR::base_court + geom_point(data = duke_shots, aes(x = loc_x, y = loc_y, color = shot_quadrant)) + theme(legend.position = "none")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
